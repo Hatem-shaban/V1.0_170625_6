@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <title>StartupStack - AI-Powered SaaS Bundle for Entrepreneurs</title>    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
+    <script type="module">
+        import startupStackPromise from './app.js';
+        
+        // Initialize StartupStack and make it globally available
+        async function initializeApp() {
+            try {
+                // Wait for StartupStack to initialize
+                const stack = await startupStackPromise;
+                window.StartupStack = stack;
+                
+                // Enable checkout buttons after initialization
+                document.querySelectorAll('[data-checkout-button]').forEach(button => {
+                    button.disabled = false;
+                });
+                
+                console.log('StartupStack initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize StartupStack:', error);
+                showNotification('Failed to initialize application', 'error');
+            }
+        }
+
+        // Initialize immediately when script loads
+        initializeApp();
+
+        // Make startCheckout available globally
+        window.startCheckout = async function(event) {
+            event.preventDefault();
+            const currentButton = event.currentTarget;
+            const originalText = currentButton.innerHTML;
+            
+            try {
+                currentButton.disabled = true;
+                currentButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+                // Initialize StartupStack if needed
+                if (!window.StartupStack?.initialized) {
+                    await initializeApp();
+                }
+
+                // Store the selected price ID
+                const priceId = currentButton.dataset.priceId;
+                if (!priceId) {
+                    throw new Error('Invalid price selected');
+                }
+                localStorage.setItem('selectedPriceId', priceId);                // Always open in signup mode for checkout
+                window.openAuthModal('signup');
+
+            } catch (error) {
+                console.error('Checkout error:', error);
+                showNotification(error.message || 'Something went wrong', 'error');
+            } finally {
+                if (currentButton) {
+                    currentButton.disabled = false;
+                    currentButton.innerHTML = originalText;
+                }
+            }
+        };
+
+        async function initializeAITools(userId) {
+            try {
+                const { aiTools, userManager } = window.StartupStack;
+
+                // Test each AI tool with sample data
+                const tools = [
+                    {
+                        name: 'businessNameGenerator',
+                        func: () => aiTools.generateBusinessNames('technology', 'innovative, modern'),
+                    },
+                    {
+                        name: 'contentCalendar',
+                        func: () => aiTools.generateContentCalendar('tech startup', 'entrepreneurs'),
+                    },
+                    {
+                        name: 'emailTemplates',
+                        func: () => aiTools.generateEmailTemplates('welcome series', 'technology'),
+                    },
+                    {
+                        name: 'marketResearch',
+                        func: () => aiTools.analyzeMarket('SaaS', 'global'),
+                    }
+                ];
+
+                // Initialize each tool
+                for (const tool of tools) {
+                    try {
+                        const result = await tool.func();
+                        await userManager.trackToolUsage(userId, tool.name, 'initialization', result);
+                    } catch (error) {
+                        console.error(`Error initializing ${tool.name}:`, error);
+                    }
+                }
+            } catch (error) {
+                console.error('Tool initialization error:', error);
+                throw new Error('Failed to initialize AI tools');
+            }
+        }
+
+        async function handleSuccessfulPayment(subscriptionId) {
+            try {
+                const email = localStorage.getItem('userEmail');
+                if (!email) throw new Error('User email not found');
+
+                // Initialize StartupStack
+                const { aiTools, userManager } = window.StartupStack;
+
+                // Register user in Supabase
+                const user = await userManager.signUp(email);
+                if (!user) throw new Error('Failed to register user');
+
+                // Store user data in localStorage
+                localStorage.setItem('userId', user.id);
+                localStorage.setItem('subscriptionId', subscriptionId);
+                
+                // Initialize AI tools
+                await initializeAITools(user.id);
+
+                showNotification('Payment successful! Welcome to StartupStack!', 'success');
+                
+                // Redirect to dashboard after short delay
+                setTimeout(() => {
+                    window.location.href = '/dashboard.html';
+                }, 2000);
+            } catch (error) {
+                console.error('Post-payment setup error:', error);
+                showNotification('Account setup error: ' + error.message, 'error');
+            }
+        }
+
+        // Update the payment success handler        // Note: This function is now deprecated in favor of handleStripeSuccess
+        async function handlePaymentSuccess() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session_id');
+            
+            // Redirect to handleStripeSuccess to avoid duplicate handling
+            if (sessionId) {
+                handleStripeSuccess();
+            }
+        }// Handle Stripe success redirect
+        async function handleStripeSuccess() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('session_id');
+
+            if (sessionId) {
+                try {
+                    const stack = await startupStackPromise;
+                    const userId = localStorage.getItem('userId');
+                    
+                    if (!userId) {
+                        throw new Error('No user session found');
+                    }
+
+                    // Get user's current plan type
+                    const { data: userData, error: userError } = await stack.supabase
+                        .from('users')
+                        .select('plan_type, stripe_session_id')
+                        .eq('id', userId)
+                        .single();
+
+                    if (userError) throw userError;
+
+                    // Update subscription status based on plan type
+                    const { error } = await stack.supabase
+                        .from('users')
+                        .update({ 
+                            subscription_status: userData.plan_type === 'lifetime' ? 'lifetime_active' : 'active',
+                            stripe_session_id: sessionId,
+                            activated_at: new Date().toISOString()
+                        })
+                        .eq('id', userId);                    if (error) throw error;
+
+                    // Show success message and redirect once
+                    showNotification('Subscription activated successfully!', 'success');
+                    window.location.href = '/dashboard.html';
+
+                } catch (error) {
+                    console.error('Payment success handling error:', error);
+                    showNotification('Error activating subscription', 'error');
+                    window.location.href = '/?subscription=error';
+                }
+            }
+        }
+
+        // Check for success redirect on page load
+        // Only handle if we're not already on the success page
+        if (window.location.search.includes('session_id') && !window.location.pathname.includes('success.html')) {
+            handleStripeSuccess();
+        }
+    </script>
+</head>
+<body class="bg-gray-900 text-white">
+    <!-- Hero Section -->
+    <div class="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">        <nav class="p-6">
+            <div class="max-w-6xl mx-auto flex justify-between items-center">
+                <h1 class="text-2xl font-bold">StartupStack</h1>                <div class="flex items-center space-x-4">
+                    <button onclick="window.openAuthModal('login')" class="border border-purple-400 text-purple-200 px-6 py-2 rounded-lg hover:bg-purple-900 hover:border-purple-300 hover:text-white transition-all duration-300 flex items-center">
+                        <i class="fas fa-user mr-2"></i>Login
+                    </button>
+                    <button onclick="scrollToPrice()" class="bg-purple-600 px-6 py-2 rounded-lg hover:bg-purple-700 transition duration-200 shadow-lg hover:shadow-purple-500/30">Sign Up</button>
+                </div>
+            </div>
+        </nav>
+        
+        <div class="max-w-6xl mx-auto px-6 py-20 text-center">
+            <h1 class="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                8 AI-Powered Tools<br>One Startup Bundle
+            </h1>
+            <p class="text-xl md:text-2xl mb-8 text-gray-300 max-w-3xl mx-auto">
+                Everything you need to launch your startup: Business names, logos, pitch decks, market research, content planning, and more. All powered by AI.
+            </p>
+            
+            <!-- Social Proof -->
+            <div class="flex justify-center space-x-8 mb-12 text-sm text-gray-400">
+                <div><i class="fas fa-users"></i> 500+ Entrepreneurs</div>
+                <div><i class="fas fa-rocket"></i> 200+ Startups Launched</div>
+                <div><i class="fas fa-star"></i> 4.9/5 Rating</div>
+            </div>
+              <button onclick="scrollToPrice()" class="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-8 py-4 rounded-lg text-xl font-semibold hover:scale-105 transform transition">
+                Sign Up & Start Your Startup Journey
+            </button>
+        </div>
+    </div>
+
+    <!-- Tools Section -->
+    <section class="py-20 bg-gray-800">
+        <div class="max-w-6xl mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Your Complete Startup Toolkit</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-lightbulb text-3xl text-purple-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Business Name Generator</h3>
+                    <p class="text-gray-300">AI generates brandable names with domain availability check</p>
+                </div>
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-palette text-3xl text-blue-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Logo Creator</h3>
+                    <p class="text-gray-300">Professional logos in seconds with unlimited variations</p>
+                </div>
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-chart-line text-3xl text-green-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Pitch Deck Templates</h3>
+                    <p class="text-gray-300">50+ investor-ready templates with AI customization</p>
+                </div>
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-search text-3xl text-yellow-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Market Research Tool</h3>
+                    <p class="text-gray-300">AI analyzes competitors and market opportunities</p>
+                </div>
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-calendar text-3xl text-red-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Content Planner</h3>
+                    <p class="text-gray-300">30-day social media calendars generated by AI</p>
+                </div>
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-envelope text-3xl text-indigo-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Email Templates</h3>
+                    <p class="text-gray-300">100+ proven email sequences for every situation</p>
+                </div>
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-file-contract text-3xl text-pink-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Legal Documents</h3>
+                    <p class="text-gray-300">AI-generated contracts, terms, and privacy policies</p>
+                </div>
+                <div class="bg-gray-700 p-6 rounded-lg">
+                    <i class="fas fa-calculator text-3xl text-teal-400 mb-4"></i>
+                    <h3 class="text-xl font-semibold mb-2">Financial Projections</h3>
+                    <p class="text-gray-300">AI-powered revenue modeling and forecasting</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="py-20 bg-gray-900">
+        <div class="max-w-4xl mx-auto px-6">
+            <h2 class="text-4xl font-bold text-center mb-16">Simple, Transparent Pricing</h2>
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Starter -->
+                <div class="bg-gray-800 p-8 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4">Starter</h3>
+                    <div class="text-4xl font-bold mb-6">$29<span class="text-lg text-gray-400">/month</span></div>
+                    <ul class="space-y-3 mb-8 text-gray-300">
+                        <li><i class="fas fa-check text-green-400 mr-2"></i>3 Core Tools</li>
+                        <li><i class="fas fa-check text-green-400 mr-2"></i>Basic Templates</li>
+                        <li><i class="fas fa-check text-green-400 mr-2"></i>Email Support</li>
+                    </ul>
+                    <button 
+                        onclick="startCheckout(event)"
+                        data-checkout-button
+                        data-price-id="price_1RYhAlE92IbV5FBUCtOmXIow"
+                        disabled
+                        class="w-full bg-gray-700 text-white py-3 rounded-lg hover:bg-gray-600 transition duration-200">
+                        <i class="fas fa-credit-card mr-2"></i>Choose Starter
+                    </button>
+                </div>
+                
+                <!-- Pro (Featured) -->
+                <div class="bg-gradient-to-b from-purple-600 to-pink-600 p-8 rounded-lg relative">
+                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-4 py-1 rounded-full text-sm font-semibold">MOST POPULAR</div>
+                    <h3 class="text-2xl font-bold mb-4">Pro Bundle</h3>
+                    <div class="text-4xl font-bold mb-6">$79<span class="text-lg text-gray-300">/month</span></div>
+                    <ul class="space-y-3 mb-8 text-gray-100">
+                        <li><i class="fas fa-check text-yellow-400 mr-2"></i>All 8 Tools</li>
+                        <li><i class="fas fa-check text-yellow-400 mr-2"></i>Premium Templates</li>
+                        <li><i class="fas fa-check text-yellow-400 mr-2"></i>Priority Support</li>
+                        <li><i class="fas fa-check text-yellow-400 mr-2"></i>Advanced Features</li>
+                        <li><i class="fas fa-check text-yellow-400 mr-2"></i>API Access</li>                    </ul>
+                    <button 
+                        onclick="startCheckout(event)" 
+                        data-checkout-button
+                        data-price-id="price_1RSdrmE92IbV5FBUV1zE2VhD"
+                        disabled
+                        class="w-full bg-white text-purple-600 py-3 rounded-lg font-semibold hover:bg-gray-100 transition duration-200">
+                        <i class="fas fa-credit-card mr-2"></i>Subscribe Now
+                    </button>
+                </div>
+                
+                <!-- Lifetime -->
+                <div class="bg-gray-800 p-8 rounded-lg">
+                    <h3 class="text-2xl font-bold mb-4">Lifetime Deal</h3>
+                    <div class="text-4xl font-bold mb-6">$297<span class="text-lg text-gray-400"> once</span></div>
+                    <ul class="space-y-3 mb-8 text-gray-300">
+                        <li><i class="fas fa-check text-green-400 mr-2"></i>Everything in Pro</li>
+                        <li><i class="fas fa-check text-green-400 mr-2"></i>Lifetime Updates</li>
+                        <li><i class="fas fa-check text-green-400 mr-2"></i>Future Tools Included</li>
+                        <li><i class="fas fa-check text-green-400 mr-2"></i>Reseller Rights</li>
+                    </ul>
+                    <button 
+                        onclick="startCheckout(event)"
+                        data-checkout-button
+                        data-price-id="price_1RYhFGE92IbV5FBUqiKOcIqX"
+                        disabled
+                        class="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 rounded-lg hover:opacity-90 transition duration-200">
+                        <i class="fas fa-credit-card mr-2"></i>Get Lifetime Access
+                    </button>
+                </div>            </div>
+            
+            <!-- Already a member section - COMMENTED OUT TEMPORARILY
+            <div class="mt-16 text-center">
+                <div class="inline-block bg-gray-800 px-8 py-6 rounded-lg shadow-lg border border-gray-700">
+                    <p class="text-lg text-gray-300 mb-4">Already a member?</p>
+                    <button onclick="window.openAuthModal('login')" class="bg-transparent border-2 border-purple-400 text-purple-300 px-8 py-3 rounded-lg hover:bg-purple-900 hover:text-white transition-all duration-200 flex items-center mx-auto">
+                        <i class="fas fa-sign-in-alt mr-3"></i>
+                        <span class="font-medium">Login to your account</span>
+                    </button>
+                </div>
+            </div>
+            -->
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="py-20 bg-gradient-to-r from-purple-600 to-pink-600">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <h2 class="text-4xl font-bold mb-6">Ready to Launch Your Startup?</h2>
+            <p class="text-xl mb-8">Join 500+ entrepreneurs who've already started their journey with StartupStack</p>            <button 
+                onclick="startCheckout(event)" 
+                data-checkout-button
+                data-price-id="price_1RSdrmE92IbV5FBUV1zE2VhD"
+                class="bg-white text-purple-600 px-8 py-4 rounded-lg text-xl font-semibold hover:bg-gray-100">
+                <i class="fas fa-credit-card mr-2"></i>Start Your Free Trial Today
+            </button>
+        </div>
+    </section>    <!-- Auth Modal -->
+<div id="authModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div class="bg-gray-800 p-8 rounded-lg max-w-md w-full mx-4 shadow-xl">
+        <!-- Modal Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h2 id="authTitle" class="text-2xl font-bold text-white">Log In</h2>
+            <button onclick="closeAuthModal()" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>        <!-- Auth Tabs - showing single tab at a time -->
+        <div class="flex mb-6 border-b border-gray-700" id="authTabs">
+            <div id="loginTab" style="width: 100%;" class="py-3 text-center">
+                <h3 class="font-medium text-white border-b-2 border-purple-500 inline-flex items-center">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Log In
+                </h3>
+            </div>
+            <div id="signupTab" style="display: none; width: 100%;" class="py-3 text-center">
+                <h3 class="font-medium text-white border-b-2 border-purple-500 inline-flex items-center">
+                    <i class="fas fa-user-plus mr-2"></i>Sign Up
+                </h3>
+            </div>
+        </div>
+          <!-- Tab switching logic moved to global scope -->
+
+        <!-- Auth Form -->
+        <form id="authForm" class="space-y-4">
+            <div>
+                <label for="email" class="block text-sm font-medium mb-2 text-white">Email Address</label>
+                <input type="email" id="email" name="email" required
+                    class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500">
+            </div>
+
+            <div id="nameField" class="hidden">
+                <label for="userName" class="block text-sm font-medium mb-2 text-white">Your Name</label>
+                <input type="text" id="userName" name="userName" 
+                    class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-purple-500">
+            </div>            <button type="submit" id="authSubmitBtn" 
+                class="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition duration-300 shadow-lg hover:shadow-purple-500/30 font-medium flex items-center justify-center">
+                <i id="loginBtnIcon" class="fas fa-sign-in-alt mr-2"></i>
+                <span id="loginBtnText">Log In</span>
+            </button>              <div id="authHelperText" class="mt-3 text-center text-sm text-gray-400">                <span id="loginHelper">New user? <a href="#" onclick="window.switchTab('signup'); return false;" class="text-purple-400 hover:underline">Create an account</a> to get started</span>
+                <span id="signupHelper" style="display: none;">Already have an account? <a href="#" onclick="window.switchTab('login'); return false;" class="text-purple-400 hover:underline">Log in</a> instead</span>
+            </div>
+            
+            <p class="text-center text-sm text-gray-400 mt-4">
+                By continuing, you agree to our <a href="terms.html" class="text-purple-400 hover:underline">Terms of Service</a> and <a href="privacy.html" class="text-purple-400 hover:underline">Privacy Policy</a>
+            </p>
+        </form>
+    </div>
+</div>
+
+    <script>        function scrollToPrice() {
+            document.getElementById('pricing').scrollIntoView({ behavior: 'smooth' });
+        }
+          const stripe = Stripe('pk_test_51Ps2dzE92IbV5FBUbYDh6nBs2WLVSofAVNDwp5emPBrLW1vdaRjZXVW2o6A9nYvPQDqy8k95sd8bQmF497HlHLUk00a07sJfdo');
+    </script>    <script>
+        // Email Functions with improved error handling
+        async function sendWelcomeEmail(userEmail, userName = 'New User') {
+            try {
+                const response = await fetch('/.netlify/functions/send-welcome-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: userEmail,
+                        userName: userName
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to send welcome email');
+                }
+
+                showNotification('Welcome email sent! Check your inbox.', 'success');
+                return true;
+            } catch (error) {
+                console.error('Failed to send welcome email:', error);
+                showNotification('Welcome email will be sent shortly.', 'info');
+                return false;
+            }
+        }        async function sendTrialEndingEmail(userEmail, userName = 'Valued Customer') {
+            try {
+                const response = await fetch('/.netlify/functions/send-trial-ending-email', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: userEmail,
+                        userName: userName
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to send trial ending email');
+                }
+
+                showNotification('Trial ending reminder sent', 'success');
+                return true;
+            } catch (error) {
+                console.error('Failed to send trial ending email:', error);
+                showNotification('Failed to send trial ending reminder', 'error');
+                return false;
+            }
+        }
+    </script>
+
+    <script>        // Global notification function with improved styling and animation
+        window.showNotification = function(message, type = 'info') {
+            const notification = document.createElement('div');
+            
+            // Set styles based on notification type
+            let bgColor, iconClass;
+            switch(type) {
+                case 'success':
+                    bgColor = 'bg-green-600';
+                    iconClass = 'fa-check-circle';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-600';
+                    iconClass = 'fa-exclamation-circle';
+                    break;
+                case 'warning':
+                    bgColor = 'bg-yellow-500';
+                    iconClass = 'fa-exclamation-triangle';
+                    break;
+                case 'info':
+                default:
+                    bgColor = 'bg-blue-600';
+                    iconClass = 'fa-info-circle';
+            }
+            
+            notification.className = `fixed top-4 right-4 ${bgColor} text-white py-3 px-5 rounded-md shadow-lg flex items-center space-x-3 z-50 transform transition-all duration-300 ease-out`;
+            notification.style.maxWidth = '90%';
+            
+            // Add icon and message
+            notification.innerHTML = `
+                <i class="fas ${iconClass} text-lg"></i>
+                <span>${message}</span>
+            `;
+            
+            // Add to DOM
+            document.body.appendChild(notification);
+            
+            // Animation
+            setTimeout(() => {
+                notification.style.transform = 'translateX(20px)';
+                notification.style.opacity = '0';
+                setTimeout(() => {
+                    notification.remove();
+                }, 300);
+            }, 3000);
+        };    </script>    <script>
+    // Define these variables and functions in the global scope so they're accessible everywhere
+    let isLoginMode = true;
+    
+    // Simplified tab switching function that only shows one tab at a time
+    window.switchTab = function(mode) {
+        isLoginMode = mode === 'login';
+        
+        // Show only the active tab, hide the inactive one
+        document.getElementById('loginTab').style.display = isLoginMode ? 'block' : 'none';
+        document.getElementById('signupTab').style.display = !isLoginMode ? 'block' : 'none';
+        
+        // Update form elements
+        document.getElementById('authTitle').textContent = isLoginMode ? 'Log In' : 'Sign Up';
+        document.getElementById('loginBtnText').textContent = isLoginMode ? 'Log In' : 'Create Account';
+        document.getElementById('nameField').style.display = isLoginMode ? 'none' : 'block';
+        
+        // Update helper text visibility
+        document.getElementById('loginHelper').style.display = isLoginMode ? 'inline' : 'none';
+        document.getElementById('signupHelper').style.display = !isLoginMode ? 'inline' : 'none';
+        
+        // Update button styling based on mode
+        const submitBtn = document.getElementById('authSubmitBtn');
+        if (isLoginMode) {
+            submitBtn.classList.remove('bg-green-600', 'hover:bg-green-700', 'hover:shadow-green-500/30');
+            submitBtn.classList.add('bg-purple-600', 'hover:bg-purple-700', 'hover:shadow-purple-500/30');
+        } else {
+            submitBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700', 'hover:shadow-purple-500/30');
+            submitBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'hover:shadow-green-500/30');
+        }
+    }
+    
+    // Define openAuthModal function in the global scope
+    window.openAuthModal = function(mode = 'login') {
+        document.getElementById('authModal').classList.remove('hidden');
+        // Set mode explicitly based on parameter
+        window.switchTab(mode);
+    }
+    
+    // Define closeAuthModal in the global scope
+    window.closeAuthModal = function() {
+        document.getElementById('authModal').classList.add('hidden');
+        // Clear form fields
+        document.getElementById('email').value = '';
+        document.getElementById('userName').value = '';
+    }
+    
+    // Show auth modal immediately if auth is required
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('auth') || urlParams.has('subscription')) {
+            // Determine which mode to open based on URL parameters
+            const mode = urlParams.has('auth') && urlParams.get('auth') === 'signup' ? 'signup' : 'login';
+            window.openAuthModal(mode);
+        }
+    });
+    
+    // Using the globally defined showNotification function
+    const showNotification = window.showNotification;
+    </script>
+
+    <script>
+        // Error messages
+    const ERROR_MESSAGES = {
+        USER_NOT_FOUND: 'User not found. Please sign up.',
+        EMAIL_EXISTS: 'Email already exists. Please log in.',
+        CHECKOUT_FAILED: 'Failed to start checkout process. Please try again.',
+        CREATE_USER_FAILED: 'Failed to create account. Please try again.',
+        INVALID_RESPONSE: 'Invalid server response. Please try again.',
+        NAME_REQUIRED: 'Please enter your name to sign up.'
+    };
+
+    async function createCheckoutSession(email, userId) {
+        const priceId = localStorage.getItem('selectedPriceId');
+        
+        const response = await fetch('/.netlify/functions/create-checkout-session', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ 
+                customerEmail: email, 
+                userId,
+                priceId: priceId || process.env.STRIPE_PRICE_ID // Fallback to default price
+            })
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Checkout error:', errorData);
+            throw new Error(errorData.error || ERROR_MESSAGES.CHECKOUT_FAILED);
+        }
+
+        const data = await response.json();
+        if (!data.id || !data.success) {
+            console.error('Invalid checkout response:', data);
+            throw new Error(data.error || ERROR_MESSAGES.INVALID_RESPONSE);
+        }
+
+        return data.id;
+    }    
+
+    document.getElementById('authForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const email = document.getElementById('email').value;
+        const userName = document.getElementById('userName').value || null;
+        const submitButton = event.submitter;
+        
+        // Basic validation
+        if (!isLoginMode && !userName) {
+            showNotification(ERROR_MESSAGES.NAME_REQUIRED, 'warning');
+            document.getElementById('userName').focus();
+            return;
+        }
+        
+        try {
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+            // Initialize StartupStack if needed
+            if (!window.StartupStack?.initialized) {
+                await initializeApp();
+            }
+
+            if (isLoginMode) {
+                // LOGIN FLOW
+                const { data: user, error: loginError } = await window.StartupStack.supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', email)
+                    .single();                if (loginError) {
+                    console.error('Login error:', loginError);
+                    // Suggest signing up instead
+                    window.switchTab('signup');
+                    showNotification('Email not found. Please sign up instead.', 'info');
+                    return;
+                }
+
+                // Store user data
+                localStorage.setItem('userId', user.id);
+                localStorage.setItem('userEmail', email);
+                if (user.name) {
+                    localStorage.setItem('userName', user.name);
+                }
+
+                // Update last login time
+                await window.StartupStack.supabase
+                    .from('users')
+                    .update({ last_login: new Date().toISOString() })
+                    .eq('id', user.id);
+
+                // Check subscription status
+                if (user.subscription_status === 'active') {
+                    showNotification('Welcome back!', 'success');
+                    window.location.replace('/dashboard.html');
+                    return;
+                }
+
+                // If subscription is pending or has an issue, redirect to checkout
+                showNotification('Please complete your subscription to continue', 'info');
+                
+                // Create checkout session with better error handling
+                try {
+                    const sessionId = await createCheckoutSession(email, user.id);
+                    await stripe.redirectToCheckout({ sessionId });
+                } catch (checkoutError) {
+                    console.error('Checkout error:', checkoutError);
+                    throw new Error('Failed to start checkout process. Please try again.');
+                }
+
+            } else {
+                // SIGNUP FLOW
+                // Check if user already exists
+                const { data: existingUser } = await window.StartupStack.supabase
+                    .from('users')
+                    .select('id, email')
+                    .eq('email', email)
+                    .maybeSingle();                if (existingUser) {
+                    // Switch to login mode if user already exists
+                    window.switchTab('login');
+                    showNotification('Email already exists. Please log in instead.', 'info');
+                    return;
+                }// Create new user with name field
+                const { data: newUser, error: createError } = await window.StartupStack.supabase
+                    .from('users')
+                    .insert([{
+                        email: email,
+                        name: userName,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString(),
+                        subscription_status: 'pending',
+                        last_login: new Date().toISOString()
+                    }])
+                    .select()
+                    .single();                if (createError) {
+                    console.error('User creation error:', createError);
+                    if (createError.code === '23505') {
+                        window.switchTab('login');
+                        showNotification('Email already exists. Please log in instead.', 'info');
+                        return;
+                    }
+                    throw new Error('Failed to create account. Please try again.');
+                }// Store user data in localStorage
+                localStorage.setItem('userId', newUser.id);
+                localStorage.setItem('userEmail', email);
+                localStorage.setItem('userName', userName);
+                  // Temporarily override showNotification to prevent any success messages during signup
+                window.originalShowNotification = window.showNotification;
+                window.showNotification = function(message, type) {
+                    // Only show non-success notifications during signup flow
+                    if (type !== 'success' || (!message.toLowerCase().includes('account') && !message.toLowerCase().includes('created'))) {
+                        window.originalShowNotification(message, type);
+                    }
+                };
+                  // Create checkout session for new user - directly proceed to checkout
+                try {
+                    const sessionId = await createCheckoutSession(email, newUser.id);
+                    // Immediately redirect to checkout
+                    await stripe.redirectToCheckout({ sessionId });
+                } catch (checkoutError) {
+                    // Restore original notification function
+                    if (window.originalShowNotification) {
+                        window.showNotification = window.originalShowNotification;
+                        window.originalShowNotification = null;
+                    }
+                    console.error('Checkout error:', checkoutError);
+                    throw new Error('Failed to start checkout process. Please try again.');
+                }
+            }
+        } catch (error) {
+            console.error('Auth error:', error);
+            // Restore original notification function if it was overridden
+            if (window.originalShowNotification) {
+                window.showNotification = window.originalShowNotification;
+                window.originalShowNotification = null;
+            }
+            showNotification(error.message || 'Authentication failed', 'error');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.innerHTML = isLoginMode ? 'Log In' : 'Create Account';
+        }
+    });    </script>
+
+    <footer class="bg-gray-900 py-6 mt-16">
+        <div class="container mx-auto px-4 text-center text-gray-400 text-sm">
+            <p>&copy; 2025 StartupStack. All rights reserved.</p>
+            <div class="mt-2">
+                <a href="terms.html" class="hover:text-white mx-2">Terms of Service</a>
+                <a href="privacy.html" class="hover:text-white mx-2">Privacy Policy</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

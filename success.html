@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activating Subscription - StartupStack</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
+    <script type="module">
+        import startupStackPromise from './app.js';
+
+        async function activateSubscription() {
+            const statusDiv = document.getElementById('status');
+            try {
+                // Get session and user info from URL
+                const params = new URLSearchParams(window.location.search);
+                const sessionId = params.get('session_id');
+                const userId = localStorage.getItem('userId');
+
+                if (!sessionId || !userId) {
+                    throw new Error('Missing required information');
+                }
+
+                statusDiv.innerHTML = 'Initializing...';
+                const stack = await startupStackPromise;                statusDiv.innerHTML = 'Updating subscription status...';
+                
+                // Get current subscription info from user data
+                const { data: userData, error: fetchError } = await stack.supabase
+                    .from('users')
+                    .select('plan_type, stripe_session_id')
+                    .eq('id', userId)
+                    .single();
+                
+                if (fetchError) throw fetchError;
+                
+                // Use the previously set plan_type, don't try to determine it here
+                // This ensures we honor what was set during checkout
+                const { data, error } = await stack.supabase
+                    .from('users')
+                    .update({ 
+                        subscription_status: 'active',
+                        updated_at: new Date().toISOString()
+                        // No plan_type update here - using the one set during checkout
+                    })
+                    .eq('id', userId)
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                // Verify the update
+                const { data: verifyUser, error: verifyError } = await stack.supabase
+                    .from('users')
+                    .select('subscription_status')
+                    .eq('id', userId)
+                    .single();
+
+                if (verifyError) throw verifyError;                if (verifyUser.subscription_status !== 'active') {
+                    throw new Error('Subscription status update failed');
+                }                // Send welcome email
+                const userEmail = localStorage.getItem('userEmail');
+                statusDiv.innerHTML = 'Sending welcome email...';
+                if (userEmail) {
+                    try {
+                        console.log('Attempting to send welcome email to:', userEmail);
+                        const response = await fetch('/.netlify/functions/send-welcome-email', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                email: userEmail,
+                                userName: 'New User'
+                            })
+                        });
+
+                        const responseData = await response.json();
+                        console.log('Welcome email response:', responseData);
+
+                        if (!response.ok) {
+                            console.error('Failed to send welcome email:', responseData);
+                            throw new Error('Failed to send welcome email: ' + (responseData.error || ''));
+                        } else {
+                            console.log('Welcome email sent successfully');
+                            statusDiv.innerHTML = 'Welcome email sent successfully...';
+                        }
+                    } catch (error) {
+                        console.error('Welcome email error:', error);
+                        // Don't throw the error, but log it and show in status
+                        statusDiv.innerHTML = 'Welcome email sending failed (will retry later)...';
+                    }
+                } else {
+                    console.error('No user email found in localStorage');
+                }
+
+                statusDiv.innerHTML = 'Subscription activated successfully!';
+                
+                // Store subscription info
+                localStorage.setItem('subscriptionActive', 'true');
+                localStorage.setItem('sessionId', sessionId);
+
+                // Redirect to dashboard after short delay
+                setTimeout(() => {
+                    window.location.replace('/dashboard.html');
+                }, 2000);
+
+            } catch (error) {
+                console.error('Activation error:', error);
+                statusDiv.innerHTML = `Error: ${error.message}`;
+                // Log additional error details
+                if (error.details) console.error('Error details:', error.details);
+                
+                setTimeout(() => {
+                    window.location.replace('/?error=activation');
+                }, 3000);
+            }
+        }
+
+        // Run activation when page loads
+        document.addEventListener('DOMContentLoaded', activateSubscription);
+    </script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+    <div class="text-center">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <h1 class="text-2xl font-bold mb-4">Activating Your Subscription</h1>
+        <div id="status" class="text-gray-400">Initializing...</div>    </div>
+
+    <footer class="bg-gray-900 py-6 fixed bottom-0 w-full">
+        <div class="container mx-auto px-4 text-center text-gray-400 text-sm">
+            <p>&copy; 2025 StartupStack. All rights reserved.</p>
+            <div class="mt-2">
+                <a href="terms.html" class="hover:text-white mx-2">Terms of Service</a>
+                <a href="privacy.html" class="hover:text-white mx-2">Privacy Policy</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

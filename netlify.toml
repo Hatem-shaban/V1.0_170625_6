@@ -1,0 +1,50 @@
+[build]
+  command = "npm install"
+  functions = "netlify/functions"
+  publish = "."
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@supabase/supabase-js", "stripe"]
+
+[build.environment]
+  NODE_VERSION = "18"
+  SUPABASE_URL = ""
+  SUPABASE_ANON_KEY = ""
+  STRIPE_PUBLIC_KEY = ""
+  STRIPE_SECRET_KEY = ""
+  STRIPE_PRICE_ID = ""
+  SENDGRID_API_KEY = ""
+  SENDGRID_FROM_EMAIL = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
+    Content-Security-Policy = """
+      default-src 'self';
+      script-src 'self' 'unsafe-inline' https://*.stripe.com https://*.stripe.network https://cdn.jsdelivr.net https://esm.sh https://cdnjs.cloudflare.com;
+      style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com;
+      img-src 'self' data: https://*;
+      connect-src 'self' https://*.supabase.co https://*.stripe.com https://*.stripe.network https://api.openai.com;
+      frame-src https://*.stripe.com https://*.stripe.network;
+      font-src 'self' https://cdnjs.cloudflare.com;
+      worker-src 'self' blob:;
+    """
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+  [redirects.headers]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"

@@ -1,0 +1,19 @@
+{
+  "name": "startupstack",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@sendgrid/mail": "7.7.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1",
+    "openai": "^4.24.1",
+    "stripe": "^14.10.0"
+  },
+  "devDependencies": {
+    "@netlify/functions": "^2.4.1"
+  },
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "npm install"
+  }
+}

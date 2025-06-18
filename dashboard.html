@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StartupStack Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script type="module" src="app.js"></script>    <style>
+        body {
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        #loadingOverlay {
+            opacity: 1;
+            transition: opacity 0.3s ease-out;
+        }
+        .user-profile {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.2s;
+        }
+        .user-profile:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .user-profile:hover #userEmail {
+            display: inline;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="min-h-screen">
+        <nav class="bg-gray-800 p-4">
+            <div class="max-w-7xl mx-auto px-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold">StartupStack Dashboard</h1>
+                  <!-- Add Profile/Logout Section -->
+                <div class="flex items-center space-x-4">                    <div class="text-gray-300 user-profile">
+                        <i class="fas fa-user-circle mr-2"></i>
+                        <span id="userDisplayName" class="font-medium"></span>
+                        <span id="userEmail" class="text-xs text-gray-400 ml-1 hidden"></span>
+                    </div>
+                    <button onclick="handleLogout()" 
+                            class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Business Name Generator -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button 
+                            onclick="window.StartupStack.aiTools.generateBusinessNames('tech', 'innovative')"
+                            data-ai-tool
+                            disabled 
+                            class="w-full text-left">
+                        <i class="fas fa-lightbulb text-purple-400 text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Business Name Generator</h3>
+                        <p class="text-gray-400">AI generates brandable names with domain availability check</p>
+                    </button>
+                </div>
+
+                <!-- Logo Creator -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button onclick="window.StartupStack.aiTools.generateLogo('modern', 'tech')" 
+                            class="w-full text-left" data-ai-tool disabled>
+                        <i class="fas fa-palette text-blue-400 text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Logo Creator</h3>
+                        <p class="text-gray-400">Professional logos in seconds with unlimited variations</p>
+                    </button>
+                </div>
+
+                <!-- Pitch Deck Templates -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button onclick="window.StartupStack.aiTools.generatePitchDeck('startup', 'tech')" 
+                            class="w-full text-left" data-ai-tool disabled>
+                        <i class="fas fa-chart-line text-green-400 text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Pitch Deck Templates</h3>
+                        <p class="text-gray-400">50+ investor-ready templates with AI customization</p>
+                    </button>
+                </div>
+
+                <!-- Market Research Tool -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button onclick="window.StartupStack.aiTools.analyzeMarket('SaaS', 'global')" 
+                            class="w-full text-left" data-ai-tool disabled>
+                        <i class="fas fa-search text-yellow-400 text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Market Research Tool</h3>
+                        <p class="text-gray-400">AI analyzes competitors and market opportunities</p>
+                    </button>
+                </div>
+
+                <!-- Content Planner -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button onclick="window.StartupStack.aiTools.generateContentCalendar('startup', 'tech')" 
+                            class="w-full text-left" data-ai-tool disabled>
+                        <i class="fas fa-calendar text-red-400 text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Content Planner</h3>
+                        <p class="text-gray-400">30-day social media calendars generated by AI</p>
+                    </button>
+                </div>
+
+                <!-- Email Templates -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button onclick="window.StartupStack.aiTools.generateEmailTemplates('startup', 'welcome')" 
+                            class="w-full text-left" data-ai-tool disabled>
+                        <i class="fas fa-envelope text-indigo-400 text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Email Templates</h3>
+                        <p class="text-gray-400">100+ proven email sequences for every situation</p>
+                    </button>
+                </div>
+
+                <!-- Legal Documents -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button onclick="window.StartupStack.aiTools.generateLegalDocs('startup', 'terms')" 
+                            class="w-full text-left" data-ai-tool disabled>
+                        <i class="fas fa-file-contract text-pink-400 text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Legal Documents</h3>
+                        <p class="text-gray-400">AI-generated contracts, terms, and privacy policies</p>
+                    </button>
+                </div>
+
+                <!-- Financial Projections -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                    <button onclick="window.StartupStack.aiTools.generateFinancials('startup', '5year')" 
+                            class="w-full text-left" data-ai-tool disabled>
+                        <i class="fas fa-calculator text-white text-2xl mb-4"></i>
+                        <h3 class="text-xl font-semibold mb-2">Financial Projections</h3>
+                        <p class="text-gray-400">AI-powered revenue modeling and forecasting</p>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+    import startupStackPromise from './app.js';
+
+    let authCheckComplete = false;
+
+    async function checkAuth() {
+        try {
+            const userId = localStorage.getItem('userId');
+            const userEmail = localStorage.getItem('userEmail');
+            
+            if (!userId || !userEmail) {
+                window.location.replace('/?auth=required');
+                return;
+            }
+
+            const stack = await startupStackPromise;            const { data: user, error } = await stack.supabase
+                .from('users')
+                .select('id, email, name, subscription_status, plan_type')
+                .eq('id', userId)
+                .eq('email', userEmail)
+                .single();
+
+            if (error || !user) {
+                throw new Error('User verification failed');
+            }            if (user.subscription_status !== 'active') {
+                window.location.replace('/?subscription=required');
+                return;
+            }            // Show dashboard content with a smooth transition
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+            }, 100); // Small delay to ensure smooth transition
+            
+            // Display user name if available, otherwise use email
+            const userName = localStorage.getItem('userName') || user.name;
+            const displayName = userName || userEmail.split('@')[0];
+            
+            document.getElementById('userDisplayName').textContent = displayName;
+            document.getElementById('userEmail').textContent = userEmail;
+
+            // Enable AI tools
+            document.querySelectorAll('[data-ai-tool]').forEach(button => {
+                button.disabled = false;
+            });        } catch (error) {
+            console.error('Auth check error:', error);
+            // Ensure body is visible before redirecting
+            document.body.style.opacity = '1';
+            setTimeout(() => {
+                window.location.replace('/?auth=error');
+            }, 100);
+        }
+    }
+
+    // Global logout handler
+    window.handleLogout = function() {
+        localStorage.clear();
+        window.location.href = '/?logout=success';
+    };
+
+    // Add loading indicator
+    document.body.insertAdjacentHTML('afterbegin', `
+        <div id="loadingOverlay" class="fixed inset-0 bg-gray-900 z-50 flex items-center justify-center">
+            <div class="text-center">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+                <p class="mt-4 text-white">Loading dashboard...</p>
+            </div>
+        </div>
+    `);    // Run auth check and gracefully fade out loading overlay
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            await checkAuth();
+        } finally {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                overlay.style.opacity = '0';
+                setTimeout(() => {
+                    overlay.remove();
+                }, 300); // Match transition duration
+            }
+        }
+    });    </script>
+
+    <footer class="bg-gray-900 py-6 mt-16">
+        <div class="container mx-auto px-4 text-center text-gray-400 text-sm">
+            <p>&copy; 2025 StartupStack. All rights reserved.</p>
+            <div class="mt-2">
+                <a href="terms.html" class="hover:text-white mx-2">Terms of Service</a>
+                <a href="privacy.html" class="hover:text-white mx-2">Privacy Policy</a>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

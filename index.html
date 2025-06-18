@@ -526,48 +526,84 @@
         };    </script>    <script>
     // Define these variables and functions in the global scope so they're accessible everywhere
     let isLoginMode = true;
-    
-    // Simplified tab switching function that only shows one tab at a time
+      // Simplified tab switching function that only shows one tab at a time
     window.switchTab = function(mode) {
+        // Make sure auth modal is visible first
+        const authModal = document.getElementById('authModal');
+        if (authModal && authModal.classList.contains('hidden')) {
+            authModal.classList.remove('hidden');
+        }
+        
         isLoginMode = mode === 'login';
         
+        // Safely update DOM elements with error handling
+        function safeUpdateElement(id, updateFn) {
+            const element = document.getElementById(id);
+            if (element) {
+                updateFn(element);
+            } else {
+                console.warn(`Element #${id} not found in switchTab`);
+            }
+        }
+        
         // Show only the active tab, hide the inactive one
-        document.getElementById('loginTab').style.display = isLoginMode ? 'block' : 'none';
-        document.getElementById('signupTab').style.display = !isLoginMode ? 'block' : 'none';
+        safeUpdateElement('loginTab', el => el.style.display = isLoginMode ? 'block' : 'none');
+        safeUpdateElement('signupTab', el => el.style.display = !isLoginMode ? 'block' : 'none');
         
         // Update form elements
-        document.getElementById('authTitle').textContent = isLoginMode ? 'Log In' : 'Sign Up';
-        document.getElementById('loginBtnText').textContent = isLoginMode ? 'Log In' : 'Create Account';
-        document.getElementById('nameField').style.display = isLoginMode ? 'none' : 'block';
+        safeUpdateElement('authTitle', el => el.textContent = isLoginMode ? 'Log In' : 'Sign Up');
+        safeUpdateElement('loginBtnText', el => el.textContent = isLoginMode ? 'Log In' : 'Create Account');
+        safeUpdateElement('nameField', el => el.style.display = isLoginMode ? 'none' : 'block');
         
         // Update helper text visibility
-        document.getElementById('loginHelper').style.display = isLoginMode ? 'inline' : 'none';
-        document.getElementById('signupHelper').style.display = !isLoginMode ? 'inline' : 'none';
+        safeUpdateElement('loginHelper', el => el.style.display = isLoginMode ? 'inline' : 'none');
+        safeUpdateElement('signupHelper', el => el.style.display = !isLoginMode ? 'inline' : 'none');
         
         // Update button styling based on mode
-        const submitBtn = document.getElementById('authSubmitBtn');
-        if (isLoginMode) {
-            submitBtn.classList.remove('bg-green-600', 'hover:bg-green-700', 'hover:shadow-green-500/30');
-            submitBtn.classList.add('bg-purple-600', 'hover:bg-purple-700', 'hover:shadow-purple-500/30');
-        } else {
-            submitBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700', 'hover:shadow-purple-500/30');
-            submitBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'hover:shadow-green-500/30');
-        }
+        safeUpdateElement('authSubmitBtn', submitBtn => {
+            if (isLoginMode) {
+                submitBtn.classList.remove('bg-green-600', 'hover:bg-green-700', 'hover:shadow-green-500/30');
+                submitBtn.classList.add('bg-purple-600', 'hover:bg-purple-700', 'hover:shadow-purple-500/30');
+            } else {
+                submitBtn.classList.remove('bg-purple-600', 'hover:bg-purple-700', 'hover:shadow-purple-500/30');
+                submitBtn.classList.add('bg-green-600', 'hover:bg-green-700', 'hover:shadow-green-500/30');
+            }
+        });
     }
-    
-    // Define openAuthModal function in the global scope
+      // Define openAuthModal function in the global scope
     window.openAuthModal = function(mode = 'login') {
-        document.getElementById('authModal').classList.remove('hidden');
-        // Set mode explicitly based on parameter
-        window.switchTab(mode);
+        // Get the modal safely
+        const authModal = document.getElementById('authModal');
+        if (!authModal) {
+            console.error('Auth modal not found in the DOM');
+            return;
+        }
+        
+        authModal.classList.remove('hidden');
+        
+        // Set mode explicitly based on parameter with timeout to ensure DOM is ready
+        setTimeout(() => {
+            try {
+                window.switchTab(mode);
+            } catch (e) {
+                console.error('Error switching tab:', e);
+            }
+        }, 10);
     }
     
     // Define closeAuthModal in the global scope
     window.closeAuthModal = function() {
-        document.getElementById('authModal').classList.add('hidden');
-        // Clear form fields
-        document.getElementById('email').value = '';
-        document.getElementById('userName').value = '';
+        const authModal = document.getElementById('authModal');
+        if (authModal) {
+            authModal.classList.add('hidden');
+        }
+        
+        // Clear form fields safely
+        const emailField = document.getElementById('email');
+        const nameField = document.getElementById('userName');
+        
+        if (emailField) emailField.value = '';
+        if (nameField) nameField.value = '';
     }
     
     // Show auth modal immediately if auth is required
@@ -624,13 +660,28 @@
         }
 
         return data.id;
-    }    
-
-    document.getElementById('authForm').addEventListener('submit', async (event) => {
-        event.preventDefault();
-        const email = document.getElementById('email').value;
-        const userName = document.getElementById('userName').value || null;
-        const submitButton = event.submitter;
+    }        // Add DOMContentLoaded event handler to ensure DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+        const authForm = document.getElementById('authForm');
+        if (!authForm) {
+            console.error('Auth form not found in the DOM');
+            return;
+        }
+        
+        authForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            
+            const emailElement = document.getElementById('email');
+            const userNameElement = document.getElementById('userName');
+            
+            if (!emailElement) {
+                console.error('Email input not found');
+                return;
+            }
+            
+            const email = emailElement.value;
+            const userName = userNameElement ? userNameElement.value : null;
+            const submitButton = event.submitter;
         
         // Basic validation
         if (!isLoginMode && !userName) {
@@ -648,17 +699,22 @@
                 await initializeApp();
             }
 
-            if (isLoginMode) {
-                // LOGIN FLOW
+            if (isLoginMode) {                // LOGIN FLOW
                 const { data: user, error: loginError } = await window.StartupStack.supabase
                     .from('users')
                     .select('*')
                     .eq('email', email)
-                    .single();                if (loginError) {
-                    console.error('Login error:', loginError);
+                    .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no results
+                
+                if (loginError || !user) {
+                    console.error('Login error:', loginError || 'User not found');
                     // Suggest signing up instead
-                    window.switchTab('signup');
-                    showNotification('Email not found. Please sign up instead.', 'info');
+                    try {
+                        window.switchTab('signup');
+                        showNotification('Email not found. Please sign up instead.', 'info');
+                    } catch (e) {
+                        console.error('Error switching to signup tab:', e);
+                    }
                     return;
                 }
 
@@ -695,16 +751,22 @@
                 }
 
             } else {
-                // SIGNUP FLOW
-                // Check if user already exists
+                // SIGNUP FLOW                // Check if user already exists
                 const { data: existingUser } = await window.StartupStack.supabase
                     .from('users')
                     .select('id, email')
                     .eq('email', email)
-                    .maybeSingle();                if (existingUser) {
+                    .maybeSingle();
+                
+                if (existingUser) {
                     // Switch to login mode if user already exists
-                    window.switchTab('login');
-                    showNotification('Email already exists. Please log in instead.', 'info');
+                    try {
+                        window.switchTab('login');
+                        showNotification('Email already exists. Please log in instead.', 'info');
+                    } catch (e) {
+                        console.error('Error switching to login tab:', e);
+                        showNotification('Email already exists. Please log in instead.', 'info');
+                    }
                     return;
                 }// Create new user with name field
                 const { data: newUser, error: createError } = await window.StartupStack.supabase
@@ -759,12 +821,12 @@
             if (window.originalShowNotification) {
                 window.showNotification = window.originalShowNotification;
                 window.originalShowNotification = null;
-            }
-            showNotification(error.message || 'Authentication failed', 'error');
+            }            showNotification(error.message || 'Authentication failed', 'error');
         } finally {
             submitButton.disabled = false;
             submitButton.innerHTML = isLoginMode ? 'Log In' : 'Create Account';
         }
+    });
     });    </script>
 
     <footer class="bg-gray-900 py-6 mt-16">

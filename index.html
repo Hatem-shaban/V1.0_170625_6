@@ -421,10 +421,10 @@
     </div>
 </div>
 
-    <script>        function scrollToPrice() {
-            document.getElementById('pricing').scrollIntoView({ behavior: 'smooth' });
+    <script>        function scrollToPrice() {            document.getElementById('pricing').scrollIntoView({ behavior: 'smooth' });
         }
-          const stripe = Stripe('pk_test_51Ps2dzE92IbV5FBUbYDh6nBs2WLVSofAVNDwp5emPBrLW1vdaRjZXVW2o6A9nYvPQDqy8k95sd8bQmF497HlHLUk00a07sJfdo');
+          // Initialize Stripe globally so it can be accessed from all script blocks
+          window.stripe = Stripe('pk_test_51Ps2dzE92IbV5FBUbYDh6nBs2WLVSofAVNDwp5emPBrLW1vdaRjZXVW2o6A9nYvPQDqy8k95sd8bQmF497HlHLUk00a07sJfdo');
     </script>    <script>
         // Email Functions with improved error handling
         async function sendWelcomeEmail(userEmail, userName = 'New User') {
@@ -629,10 +629,10 @@
         CREATE_USER_FAILED: 'Failed to create account. Please try again.',
         INVALID_RESPONSE: 'Invalid server response. Please try again.',
         NAME_REQUIRED: 'Please enter your name to sign up.'
-    };
-
-    async function createCheckoutSession(email, userId) {
+    };    async function createCheckoutSession(email, userId) {
         const priceId = localStorage.getItem('selectedPriceId');
+        // Default price ID hardcoded for client-side - matches the one in .env 
+        const defaultPriceId = 'price_1RSdrmE92IbV5FBUV1zE2VhD';
         
         const response = await fetch('/.netlify/functions/create-checkout-session', {
             method: 'POST',
@@ -643,7 +643,7 @@
             body: JSON.stringify({ 
                 customerEmail: email, 
                 userId,
-                priceId: priceId || process.env.STRIPE_PRICE_ID // Fallback to default price
+                priceId: priceId || defaultPriceId // Fallback to default price
             })
         });
         
@@ -741,10 +741,9 @@
                 // If subscription is pending or has an issue, redirect to checkout
                 showNotification('Please complete your subscription to continue', 'info');
                 
-                // Create checkout session with better error handling
-                try {
+                // Create checkout session with better error handling                try {
                     const sessionId = await createCheckoutSession(email, user.id);
-                    await stripe.redirectToCheckout({ sessionId });
+                    await window.stripe.redirectToCheckout({ sessionId });
                 } catch (checkoutError) {
                     console.error('Checkout error:', checkoutError);
                     throw new Error('Failed to start checkout process. Please try again.');
@@ -800,11 +799,10 @@
                         window.originalShowNotification(message, type);
                     }
                 };
-                  // Create checkout session for new user - directly proceed to checkout
-                try {
+                  // Create checkout session for new user - directly proceed to checkout                try {
                     const sessionId = await createCheckoutSession(email, newUser.id);
                     // Immediately redirect to checkout
-                    await stripe.redirectToCheckout({ sessionId });
+                    await window.stripe.redirectToCheckout({ sessionId });
                 } catch (checkoutError) {
                     // Restore original notification function
                     if (window.originalShowNotification) {
@@ -827,7 +825,7 @@
             submitButton.innerHTML = isLoginMode ? 'Log In' : 'Create Account';
         }
     });
-    });    </script>
+});    </script>
 
     <footer class="bg-gray-900 py-6 mt-16">
         <div class="container mx-auto px-4 text-center text-gray-400 text-sm">

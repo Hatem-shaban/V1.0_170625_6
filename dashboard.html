@@ -51,18 +51,7 @@
         }
         .feature-disabled button {
             pointer-events: none;
-        }
-        .plan-pro .pro-tag, .plan-lifetime .pro-tag {
-            background-color: #9333ea; /* purple-600 */
-            color: white;
-            padding: 0.1rem 0.5rem;
-            border-radius: 9999px;
-            font-size: 0.6rem;
-            font-weight: bold;
-            position: absolute;
-            top: 8px;
-            right: 8px;
-        }
+        }        /* PRO tag styles removed */
         .tooltip {
             position: relative;
             display: inline-block;
@@ -166,7 +155,6 @@
                     </button>
                 </div>                <!-- Pitch Deck Templates - Premium feature (starter plan and above) -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer premium-feature">
-                    <span class="pro-tag hidden">PREMIUM</span>
                     <button onclick="window.StartupStack.aiTools.generatePitchDeck('startup', 'tech')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-chart-line text-green-400 text-2xl mb-4"></i>
@@ -177,7 +165,6 @@
 
                 <!-- Market Research Tool - Premium feature (starter plan and above) -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer premium-feature">
-                    <span class="pro-tag hidden">PREMIUM</span>
                     <button onclick="window.StartupStack.aiTools.analyzeMarket('SaaS', 'global')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-search text-yellow-400 text-2xl mb-4"></i>
@@ -186,7 +173,6 @@
                     </button>
                 </div>                <!-- Content Planner - Premium feature (starter plan and above) -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer premium-feature">
-                    <span class="pro-tag hidden">PREMIUM</span>
                     <button onclick="window.StartupStack.aiTools.generateContentCalendar('startup', 'tech')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-calendar text-red-400 text-2xl mb-4"></i>
@@ -205,7 +191,6 @@
                     </button>
                 </div>                <!-- Legal Documents - Pro feature -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer pro-feature">
-                    <span class="pro-tag">PRO</span>
                     <button onclick="window.StartupStack.aiTools.generateLegalDocs('startup', 'terms')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-file-contract text-pink-400 text-2xl mb-4"></i>
@@ -216,7 +201,6 @@
 
                 <!-- Financial Projections - Pro feature -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer pro-feature">
-                    <span class="pro-tag">PRO</span>
                     <button onclick="window.StartupStack.aiTools.generateFinancials('startup', '5year')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-calculator text-white text-2xl mb-4"></i>
@@ -334,11 +318,7 @@
                     el.classList.remove('feature-disabled');
                     const button = el.querySelector('button[data-ai-tool]');
                     if (button) button.disabled = false;
-                });
-                // Show PRO badges
-                document.querySelectorAll('.pro-tag').forEach(tag => {
-                    tag.classList.remove('hidden');
-                });
+                });                // PRO badges have been removed
                 break;
                 
             case 'starter':

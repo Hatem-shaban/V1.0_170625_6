@@ -28,13 +28,93 @@
         .user-profile:hover #userEmail {
             display: inline;
         }
+        .plan-badge {
+            display: none;
+        }
+        .feature-disabled {
+            opacity: 0.6;
+            position: relative;
+        }
+        .feature-disabled::after {
+            content: "Upgrade Required";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+        .feature-disabled button {
+            pointer-events: none;
+        }
+        .plan-pro .pro-tag, .plan-lifetime .pro-tag {
+            background-color: #9333ea; /* purple-600 */
+            color: white;
+            padding: 0.1rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.6rem;
+            font-weight: bold;
+            position: absolute;
+            top: 8px;
+            right: 8px;
+        }
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 0.75rem;
+        }
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
     <div class="min-h-screen">
         <nav class="bg-gray-800 p-4">
             <div class="max-w-7xl mx-auto px-4 flex justify-between items-center">
-                <h1 class="text-2xl font-bold">StartupStack Dashboard</h1>
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold">StartupStack Dashboard</h1>
+                    
+                    <!-- Plan badges with tooltips - shown/hidden based on plan type -->
+                    <div id="basicPlanBadge" class="plan-badge ml-4 bg-gray-600 text-xs px-2 py-1 rounded tooltip">
+                        Basic Plan
+                        <span class="tooltiptext">Access to basic tools only</span>
+                    </div>
+                    <div id="starterPlanBadge" class="plan-badge ml-4 bg-blue-600 text-xs px-2 py-1 rounded hidden tooltip">
+                        Starter Plan
+                        <span class="tooltiptext">Access to basic + premium tools</span>
+                    </div>
+                    <div id="proPlanBadge" class="plan-badge ml-4 bg-purple-600 text-xs px-2 py-1 rounded hidden tooltip">
+                        Pro Plan
+                        <span class="tooltiptext">Full access to all tools</span>
+                    </div>
+                    <div id="lifetimePlanBadge" class="plan-badge ml-4 bg-yellow-600 text-xs px-2 py-1 rounded hidden tooltip">
+                        Lifetime Pro
+                        <span class="tooltiptext">Permanent full access to all tools</span>
+                    </div>
+                </div>
                   <!-- Add Profile/Logout Section -->
                 <div class="flex items-center space-x-4">                    <div class="text-gray-300 user-profile">
                         <i class="fas fa-user-circle mr-2"></i>
@@ -49,9 +129,21 @@
             </div>
         </nav>
 
+        <!-- Upgrade Banner - Only visible for basic plan -->
+        <div id="upgradeBanner" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 px-4 hidden">
+            <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
+                <div class="flex items-center mb-3 md:mb-0">
+                    <i class="fas fa-star-half-alt text-yellow-300 mr-2"></i>
+                    <p>Unlock all premium features with our pro plan!</p>
+                </div>
+                <a href="/?upgrade=true" class="bg-white text-purple-700 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    Upgrade Now
+                </a>
+            </div>
+        </div>
+
         <main class="max-w-7xl mx-auto px-4 py-8">
-            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- Business Name Generator -->
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">                <!-- Business Name Generator - Available on all plans -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
                     <button 
                             onclick="window.StartupStack.aiTools.generateBusinessNames('tech', 'innovative')"
@@ -64,7 +156,7 @@
                     </button>
                 </div>
 
-                <!-- Logo Creator -->
+                <!-- Logo Creator - Available on all plans -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
                     <button onclick="window.StartupStack.aiTools.generateLogo('modern', 'tech')" 
                             class="w-full text-left" data-ai-tool disabled>
@@ -72,10 +164,9 @@
                         <h3 class="text-xl font-semibold mb-2">Logo Creator</h3>
                         <p class="text-gray-400">Professional logos in seconds with unlimited variations</p>
                     </button>
-                </div>
-
-                <!-- Pitch Deck Templates -->
-                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                </div>                <!-- Pitch Deck Templates - Premium feature (starter plan and above) -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer premium-feature">
+                    <span class="pro-tag hidden">PREMIUM</span>
                     <button onclick="window.StartupStack.aiTools.generatePitchDeck('startup', 'tech')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-chart-line text-green-400 text-2xl mb-4"></i>
@@ -84,18 +175,18 @@
                     </button>
                 </div>
 
-                <!-- Market Research Tool -->
-                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                <!-- Market Research Tool - Premium feature (starter plan and above) -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer premium-feature">
+                    <span class="pro-tag hidden">PREMIUM</span>
                     <button onclick="window.StartupStack.aiTools.analyzeMarket('SaaS', 'global')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-search text-yellow-400 text-2xl mb-4"></i>
                         <h3 class="text-xl font-semibold mb-2">Market Research Tool</h3>
                         <p class="text-gray-400">AI analyzes competitors and market opportunities</p>
                     </button>
-                </div>
-
-                <!-- Content Planner -->
-                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                </div>                <!-- Content Planner - Premium feature (starter plan and above) -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer premium-feature">
+                    <span class="pro-tag hidden">PREMIUM</span>
                     <button onclick="window.StartupStack.aiTools.generateContentCalendar('startup', 'tech')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-calendar text-red-400 text-2xl mb-4"></i>
@@ -104,7 +195,7 @@
                     </button>
                 </div>
 
-                <!-- Email Templates -->
+                <!-- Email Templates - Available on all plans -->
                 <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
                     <button onclick="window.StartupStack.aiTools.generateEmailTemplates('startup', 'welcome')" 
                             class="w-full text-left" data-ai-tool disabled>
@@ -112,10 +203,9 @@
                         <h3 class="text-xl font-semibold mb-2">Email Templates</h3>
                         <p class="text-gray-400">100+ proven email sequences for every situation</p>
                     </button>
-                </div>
-
-                <!-- Legal Documents -->
-                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                </div>                <!-- Legal Documents - Pro feature -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer pro-feature">
+                    <span class="pro-tag">PRO</span>
                     <button onclick="window.StartupStack.aiTools.generateLegalDocs('startup', 'terms')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-file-contract text-pink-400 text-2xl mb-4"></i>
@@ -124,8 +214,9 @@
                     </button>
                 </div>
 
-                <!-- Financial Projections -->
-                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer">
+                <!-- Financial Projections - Pro feature -->
+                <div class="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer pro-feature">
+                    <span class="pro-tag">PRO</span>
                     <button onclick="window.StartupStack.aiTools.generateFinancials('startup', '5year')" 
                             class="w-full text-left" data-ai-tool disabled>
                         <i class="fas fa-calculator text-white text-2xl mb-4"></i>
@@ -141,6 +232,7 @@
     import startupStackPromise from './app.js';
 
     let authCheckComplete = false;
+    let userPlanType = 'basic'; // Default plan type
 
     async function checkAuth() {
         try {
@@ -152,7 +244,8 @@
                 return;
             }
 
-            const stack = await startupStackPromise;            const { data: user, error } = await stack.supabase
+            const stack = await startupStackPromise;
+            const { data: user, error } = await stack.supabase
                 .from('users')
                 .select('id, email, name, subscription_status, plan_type')
                 .eq('id', userId)
@@ -161,10 +254,21 @@
 
             if (error || !user) {
                 throw new Error('User verification failed');
-            }            if (user.subscription_status !== 'active') {
+            }
+
+            if (user.subscription_status !== 'active') {
                 window.location.replace('/?subscription=required');
                 return;
-            }            // Show dashboard content with a smooth transition
+            }
+            
+            // Store plan type for dashboard customization
+            userPlanType = user.plan_type || 'basic';
+            console.log('User plan type:', userPlanType);
+            
+            // Apply plan-specific UI customization
+            applyPlanSpecificUI(userPlanType);
+
+            // Show dashboard content with a smooth transition
             setTimeout(() => {
                 document.body.style.opacity = '1';
             }, 100); // Small delay to ensure smooth transition
@@ -179,13 +283,103 @@
             // Enable AI tools
             document.querySelectorAll('[data-ai-tool]').forEach(button => {
                 button.disabled = false;
-            });        } catch (error) {
+            });
+        } catch (error) {
             console.error('Auth check error:', error);
             // Ensure body is visible before redirecting
             document.body.style.opacity = '1';
             setTimeout(() => {
                 window.location.replace('/?auth=error');
             }, 100);
+        }
+    }    // Apply UI customization based on plan type
+    function applyPlanSpecificUI(planType) {
+        // Hide plan badge containers first
+        document.querySelectorAll('.plan-badge').forEach(badge => {
+            badge.style.display = 'none';
+        });
+        
+        // Show the appropriate plan badge
+        const planBadge = document.getElementById(`${planType}PlanBadge`);
+        if (planBadge) planBadge.style.display = 'block';
+        
+        // Set plan-specific class on body
+        document.body.classList.add(`plan-${planType}`);
+        
+        // Handle upgrade banner visibility
+        const upgradeBanner = document.getElementById('upgradeBanner');
+        if (upgradeBanner) {
+            // Only show for basic and trial plans
+            if (planType === 'basic' || !planType) {
+                upgradeBanner.classList.remove('hidden');
+            } else {
+                upgradeBanner.classList.add('hidden');
+            }
+        }
+        
+        // Handle feature availability based on plan
+        const premiumFeatures = document.querySelectorAll('.premium-feature');
+        const proFeatures = document.querySelectorAll('.pro-feature');
+        
+        switch(planType) {
+            case 'lifetime':
+            case 'pro':
+                // All features available
+                premiumFeatures.forEach(el => {
+                    el.classList.remove('feature-disabled');
+                    const button = el.querySelector('button[data-ai-tool]');
+                    if (button) button.disabled = false;
+                });
+                proFeatures.forEach(el => {
+                    el.classList.remove('feature-disabled');
+                    const button = el.querySelector('button[data-ai-tool]');
+                    if (button) button.disabled = false;
+                });
+                // Show PRO badges
+                document.querySelectorAll('.pro-tag').forEach(tag => {
+                    tag.classList.remove('hidden');
+                });
+                break;
+                
+            case 'starter':
+                // Only premium features are available, pro features are disabled
+                premiumFeatures.forEach(el => {
+                    el.classList.remove('feature-disabled');
+                    const button = el.querySelector('button[data-ai-tool]');
+                    if (button) button.disabled = false;
+                });
+                proFeatures.forEach(el => {
+                    el.classList.add('feature-disabled');
+                    const button = el.querySelector('button[data-ai-tool]');
+                    if (button) button.disabled = true;
+                });
+                break;
+                
+            default: // basic or trial
+                // All premium and pro features are disabled
+                premiumFeatures.forEach(el => {
+                    el.classList.add('feature-disabled');
+                    const button = el.querySelector('button[data-ai-tool]');
+                    if (button) button.disabled = true;
+                });
+                proFeatures.forEach(el => {
+                    el.classList.add('feature-disabled');
+                    const button = el.querySelector('button[data-ai-tool]');
+                    if (button) button.disabled = true;
+                });
+                break;
+        }
+        
+        // Track plan type for analytics
+        if (window.StartupStack && window.StartupStack.userManager) {
+            const userId = localStorage.getItem('userId');
+            if (userId) {
+                try {
+                    window.StartupStack.userManager.trackToolUsage(userId, 'dashboard', 'view', `Viewed dashboard with plan: ${planType}`);
+                } catch (error) {
+                    console.error('Error tracking dashboard view:', error);
+                }
+            }
         }
     }
 
@@ -203,7 +397,9 @@
                 <p class="mt-4 text-white">Loading dashboard...</p>
             </div>
         </div>
-    `);    // Run auth check and gracefully fade out loading overlay
+    `);
+
+    // Run auth check and gracefully fade out loading overlay
     document.addEventListener('DOMContentLoaded', async () => {
         try {
             await checkAuth();
@@ -216,7 +412,8 @@
                 }, 300); // Match transition duration
             }
         }
-    });    </script>
+    });
+    </script>
 
     <footer class="bg-gray-900 py-6 mt-16">
         <div class="container mx-auto px-4 text-center text-gray-400 text-sm">

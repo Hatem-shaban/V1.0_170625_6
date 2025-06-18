@@ -660,7 +660,7 @@
         }
 
         return data.id;
-    }        // Add DOMContentLoaded event handler to ensure DOM is fully loaded
+    }    // Add event listener to the auth form on DOMContentLoaded to ensure DOM is ready
     document.addEventListener('DOMContentLoaded', () => {
         const authForm = document.getElementById('authForm');
         if (!authForm) {
@@ -682,150 +682,166 @@
             const email = emailElement.value;
             const userName = userNameElement ? userNameElement.value : null;
             const submitButton = event.submitter;
-        
-        // Basic validation
-        if (!isLoginMode && !userName) {
-            showNotification(ERROR_MESSAGES.NAME_REQUIRED, 'warning');
-            document.getElementById('userName').focus();
-            return;
-        }
-        
-        try {
-            submitButton.disabled = true;
-            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-
-            // Initialize StartupStack if needed
-            if (!window.StartupStack?.initialized) {
-                await initializeApp();
+            
+            // Basic validation
+            if (!isLoginMode && !userName) {
+                showNotification(ERROR_MESSAGES.NAME_REQUIRED, 'warning');
+                if (document.getElementById('userName')) {
+                    document.getElementById('userName').focus();
+                }
+                return;
             }
-
-            if (isLoginMode) {                // LOGIN FLOW
-                const { data: user, error: loginError } = await window.StartupStack.supabase
-                    .from('users')
-                    .select('*')
-                    .eq('email', email)
-                    .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no results
-                
-                if (loginError || !user) {
-                    console.error('Login error:', loginError || 'User not found');
-                    // Suggest signing up instead
-                    try {
-                        window.switchTab('signup');
-                        showNotification('Email not found. Please sign up instead.', 'info');
-                    } catch (e) {
-                        console.error('Error switching to signup tab:', e);
-                    }
-                    return;
+            
+            try {
+                submitButton.disabled = true;
+                submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    
+                // Initialize StartupStack if needed
+                if (!window.StartupStack?.initialized) {
+                    await initializeApp();
                 }
-
-                // Store user data
-                localStorage.setItem('userId', user.id);
-                localStorage.setItem('userEmail', email);
-                if (user.name) {
-                    localStorage.setItem('userName', user.name);
-                }
-
-                // Update last login time
-                await window.StartupStack.supabase
-                    .from('users')
-                    .update({ last_login: new Date().toISOString() })
-                    .eq('id', user.id);
-
-                // Check subscription status
-                if (user.subscription_status === 'active') {
-                    showNotification('Welcome back!', 'success');
-                    window.location.replace('/dashboard.html');
-                    return;
-                }
-
-                // If subscription is pending or has an issue, redirect to checkout
-                showNotification('Please complete your subscription to continue', 'info');
-                
-                // Create checkout session with better error handling                try {
-                    const sessionId = await createCheckoutSession(email, user.id);
-                    await window.stripe.redirectToCheckout({ sessionId });
-                } catch (checkoutError) {
-                    console.error('Checkout error:', checkoutError);
-                    throw new Error('Failed to start checkout process. Please try again.');
-                }
-
-            } else {
-                // SIGNUP FLOW                // Check if user already exists
-                const { data: existingUser } = await window.StartupStack.supabase
-                    .from('users')
-                    .select('id, email')
-                    .eq('email', email)
-                    .maybeSingle();
-                
-                if (existingUser) {
-                    // Switch to login mode if user already exists
-                    try {
-                        window.switchTab('login');
-                        showNotification('Email already exists. Please log in instead.', 'info');
-                    } catch (e) {
-                        console.error('Error switching to login tab:', e);
-                        showNotification('Email already exists. Please log in instead.', 'info');
-                    }
-                    return;
-                }// Create new user with name field
-                const { data: newUser, error: createError } = await window.StartupStack.supabase
-                    .from('users')
-                    .insert([{
-                        email: email,
-                        name: userName,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString(),
-                        subscription_status: 'pending',
-                        last_login: new Date().toISOString()
-                    }])
-                    .select()
-                    .single();                if (createError) {
-                    console.error('User creation error:', createError);
-                    if (createError.code === '23505') {
-                        window.switchTab('login');
-                        showNotification('Email already exists. Please log in instead.', 'info');
+    
+                if (isLoginMode) {
+                    // LOGIN FLOW
+                    const { data: user, error: loginError } = await window.StartupStack.supabase
+                        .from('users')
+                        .select('*')
+                        .eq('email', email)
+                        .maybeSingle(); // Use maybeSingle instead of single to avoid errors when no results
+                    
+                    if (loginError || !user) {
+                        console.error('Login error:', loginError || 'User not found');
+                        // Suggest signing up instead
+                        try {
+                            window.switchTab('signup');
+                            showNotification('Email not found. Please sign up instead.', 'info');
+                        } catch (e) {
+                            console.error('Error switching to signup tab:', e);
+                        }
                         return;
                     }
-                    throw new Error('Failed to create account. Please try again.');
-                }// Store user data in localStorage
-                localStorage.setItem('userId', newUser.id);
-                localStorage.setItem('userEmail', email);
-                localStorage.setItem('userName', userName);
-                  // Temporarily override showNotification to prevent any success messages during signup
-                window.originalShowNotification = window.showNotification;
-                window.showNotification = function(message, type) {
-                    // Only show non-success notifications during signup flow
-                    if (type !== 'success' || (!message.toLowerCase().includes('account') && !message.toLowerCase().includes('created'))) {
-                        window.originalShowNotification(message, type);
+    
+                    // Store user data
+                    localStorage.setItem('userId', user.id);
+                    localStorage.setItem('userEmail', email);
+                    if (user.name) {
+                        localStorage.setItem('userName', user.name);
                     }
-                };
-                  // Create checkout session for new user - directly proceed to checkout                try {
-                    const sessionId = await createCheckoutSession(email, newUser.id);
-                    // Immediately redirect to checkout
-                    await window.stripe.redirectToCheckout({ sessionId });
-                } catch (checkoutError) {
-                    // Restore original notification function
-                    if (window.originalShowNotification) {
-                        window.showNotification = window.originalShowNotification;
-                        window.originalShowNotification = null;
+    
+                    // Update last login time
+                    await window.StartupStack.supabase
+                        .from('users')
+                        .update({ last_login: new Date().toISOString() })
+                        .eq('id', user.id);
+    
+                    // Check subscription status
+                    if (user.subscription_status === 'active') {
+                        showNotification('Welcome back!', 'success');
+                        window.location.replace('/dashboard.html');
+                        return;
                     }
-                    console.error('Checkout error:', checkoutError);
-                    throw new Error('Failed to start checkout process. Please try again.');
+    
+                    // If subscription is pending or has an issue, redirect to checkout
+                    showNotification('Please complete your subscription to continue', 'info');
+                    
+                    // Create checkout session with better error handling
+                    try {
+                        const sessionId = await createCheckoutSession(email, user.id);
+                        await window.stripe.redirectToCheckout({ sessionId });
+                    } catch (checkoutError) {
+                        console.error('Checkout error:', checkoutError);
+                        throw new Error('Failed to start checkout process. Please try again.');
+                    }
+                } else {
+                    // SIGNUP FLOW
+                    // Check if user already exists
+                    const { data: existingUser } = await window.StartupStack.supabase
+                        .from('users')
+                        .select('id, email')
+                        .eq('email', email)
+                        .maybeSingle();
+                    
+                    if (existingUser) {
+                        // Switch to login mode if user already exists
+                        try {
+                            window.switchTab('login');
+                            showNotification('Email already exists. Please log in instead.', 'info');
+                        } catch (e) {
+                            console.error('Error switching to login tab:', e);
+                            showNotification('Email already exists. Please log in instead.', 'info');
+                        }
+                        return;
+                    }
+                    
+                    // Create new user with name field
+                    const { data: newUser, error: createError } = await window.StartupStack.supabase
+                        .from('users')
+                        .insert([{
+                            email: email,
+                            name: userName,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
+                            subscription_status: 'pending',
+                            last_login: new Date().toISOString()
+                        }])
+                        .select()
+                        .single();
+                        
+                    if (createError) {
+                        console.error('User creation error:', createError);
+                        if (createError.code === '23505') {
+                            window.switchTab('login');
+                            showNotification('Email already exists. Please log in instead.', 'info');
+                            return;
+                        }
+                        throw new Error('Failed to create account. Please try again.');
+                    }
+                    
+                    // Store user data in localStorage
+                    localStorage.setItem('userId', newUser.id);
+                    localStorage.setItem('userEmail', email);
+                    localStorage.setItem('userName', userName);
+                      
+                    // Temporarily override showNotification to prevent any success messages during signup
+                    window.originalShowNotification = window.showNotification;
+                    window.showNotification = function(message, type) {
+                        // Only show non-success notifications during signup flow
+                        if (type !== 'success' || (!message.toLowerCase().includes('account') && !message.toLowerCase().includes('created'))) {
+                            window.originalShowNotification(message, type);
+                        }
+                    };
+                      
+                    // Create checkout session for new user - directly proceed to checkout
+                    try {
+                        const sessionId = await createCheckoutSession(email, newUser.id);
+                        // Immediately redirect to checkout
+                        await window.stripe.redirectToCheckout({ sessionId });
+                    } catch (checkoutError) {
+                        // Restore original notification function
+                        if (window.originalShowNotification) {
+                            window.showNotification = window.originalShowNotification;
+                            window.originalShowNotification = null;
+                        }
+                        console.error('Checkout error:', checkoutError);
+                        throw new Error('Failed to start checkout process. Please try again.');
+                    }
                 }
+            } catch (error) {
+                console.error('Auth error:', error);
+                // Restore original notification function if it was overridden
+                if (window.originalShowNotification) {
+                    window.showNotification = window.originalShowNotification;
+                    window.originalShowNotification = null;
+                }
+                
+                showNotification(error.message || 'Authentication failed', 'error');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.innerHTML = isLoginMode ? 'Log In' : 'Create Account';
             }
-        } catch (error) {
-            console.error('Auth error:', error);
-            // Restore original notification function if it was overridden
-            if (window.originalShowNotification) {
-                window.showNotification = window.originalShowNotification;
-                window.originalShowNotification = null;
-            }            showNotification(error.message || 'Authentication failed', 'error');
-        } finally {
-            submitButton.disabled = false;
-            submitButton.innerHTML = isLoginMode ? 'Log In' : 'Create Account';
-        }
+        });
     });
-});    </script>
+    </script>
 
     <footer class="bg-gray-900 py-6 mt-16">
         <div class="container mx-auto px-4 text-center text-gray-400 text-sm">

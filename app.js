@@ -42,18 +42,20 @@ class UserManager {
             console.error('User signup error:', error);
             throw error;
         }
-    }
-
-    async trackToolUsage(userId, toolName, action, result) {
+    }    async trackToolUsage(userId, toolName, action, result) {
         try {
+            // Format input and output data as JSONB
+            const inputData = typeof action === 'object' ? action : { action };
+            const outputData = typeof result === 'object' ? result : { result };
+            
             const { error } = await this.supabase
                 .from('tool_usage')
                 .insert([{
                     user_id: userId,
                     tool_name: toolName,
-                    action: action,
-                    result: result,
-                    created_at: new Date().toISOString()
+                    input_data: inputData,
+                    output_data: outputData
+                    // used_at timestamp is set by default in the database
                 }]);
 
             if (error) throw error;
@@ -61,12 +63,51 @@ class UserManager {
             console.error('Tool usage tracking error:', error);
         }
     }
+    
+    async saveGeneratedContent(userId, toolType, content) {
+        try {
+            const contentObj = typeof content === 'object' ? content : { content };
+            
+            const { error } = await this.supabase
+                .from('generated_content')
+                .insert([{
+                    user_id: userId, 
+                    tool_type: toolType,
+                    content: contentObj
+                    // created_at timestamp is set by default in the database
+                }]);
+
+            if (error) throw error;
+        } catch (error) {
+            console.error('Content saving error:', error);
+        }
+    }
 }
 
 // AI Tool Functions
 class StartupStackAI {
+    constructor() {
+        this.userManager = null;
+    }
+
+    setUserManager(userManager) {
+        this.userManager = userManager;
+    }
+
     async callAIOperation(operation, params) {
         try {
+            // Get user ID for tracking
+            const userId = localStorage.getItem('userId');
+            
+            // Track tool usage before making the API call
+            if (userId && this.userManager) {
+                await this.userManager.trackToolUsage(
+                    userId, 
+                    operation, 
+                    params
+                );
+            }
+
             const response = await fetch('/.netlify/functions/ai-operations', {
                 method: 'POST',
                 headers: {
@@ -74,7 +115,8 @@ class StartupStackAI {
                 },
                 body: JSON.stringify({
                     operation,
-                    params
+                    params,
+                    userId // Pass userId to serverless function
                 })
             });
 
@@ -86,6 +128,18 @@ class StartupStackAI {
 
             if (data.error) {
                 throw new Error(data.error);
+            }
+
+            // Save generated content if we have a user ID
+            if (userId && this.userManager && data.result) {
+                await this.userManager.saveGeneratedContent(
+                    userId,
+                    operation,
+                    {
+                        input: params,
+                        output: data.result
+                    }
+                );
             }
 
             return data.result;
@@ -135,6 +189,9 @@ async function initializeStartupStack() {
         // Create instances
         const aiTools = new StartupStackAI();
         const userManager = new UserManager(supabase);
+        
+        // Set up cross-references
+        aiTools.setUserManager(userManager);
         
         const stack = {
             aiTools,

@@ -262,11 +262,41 @@
             const displayName = userName || userEmail.split('@')[0];
             
             document.getElementById('userDisplayName').textContent = displayName;
-            document.getElementById('userEmail').textContent = userEmail;
-
-            // Enable AI tools
+            document.getElementById('userEmail').textContent = userEmail;            // Enable AI tools
             document.querySelectorAll('[data-ai-tool]').forEach(button => {
                 button.disabled = false;
+                
+                // Add click tracking (only if not already added)
+                if (!button.hasAttribute('data-tracking-added')) {
+                    const originalOnClick = button.onclick;
+                    button.onclick = async function(e) {
+                        const toolName = button.closest('div').querySelector('h3').textContent;
+                        const userId = localStorage.getItem('userId');
+                        
+                        if (userId && window.StartupStack && window.StartupStack.userManager) {
+                            try {
+                                await window.StartupStack.userManager.trackToolUsage(
+                                    userId,
+                                    'tool_click',
+                                    {
+                                        tool_name: toolName,
+                                        plan_type: userPlanType,
+                                        timestamp: new Date().toISOString()
+                                    }
+                                );
+                            } catch (error) {
+                                console.error('Error tracking tool click:', error);
+                            }
+                        }
+                        
+                        // Call the original onclick handler
+                        if (originalOnClick) {
+                            return originalOnClick.call(this, e);
+                        }
+                    };
+                    
+                    button.setAttribute('data-tracking-added', 'true');
+                }
             });
         } catch (error) {
             console.error('Auth check error:', error);
@@ -349,13 +379,23 @@
                 });
                 break;
         }
-        
-        // Track plan type for analytics
+          // Track plan type for analytics
         if (window.StartupStack && window.StartupStack.userManager) {
             const userId = localStorage.getItem('userId');
             if (userId) {
                 try {
-                    window.StartupStack.userManager.trackToolUsage(userId, 'dashboard', 'view', `Viewed dashboard with plan: ${planType}`);
+                    window.StartupStack.userManager.trackToolUsage(
+                        userId, 
+                        'dashboard_view', 
+                        { 
+                            plan_type: planType,
+                            timestamp: new Date().toISOString(),
+                            features_enabled: {
+                                premium: planType === 'starter' || planType === 'pro' || planType === 'lifetime',
+                                pro: planType === 'pro' || planType === 'lifetime'
+                            }
+                        }
+                    );
                 } catch (error) {
                     console.error('Error tracking dashboard view:', error);
                 }
